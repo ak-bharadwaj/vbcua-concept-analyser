@@ -29,3 +29,5 @@ test_output_report.pdf
 # OS files
 .DS_Store
 Thumbs.db
+
+.vercel
