@@ -9,7 +9,11 @@ temp_upload.*
 *.wav
 *.mp3
 !sample_explanation.mp3
+!sample_erd.mp3
+!sample_ml.mp3
+!sample_cloud.mp3
 *.m4a
+
 
 
 # Python cache & virtual environments

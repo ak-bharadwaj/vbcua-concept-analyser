@@ -16,40 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Helper function to generate a spoken or mock audio file if not exists
-def ensure_sample_audio():
-    filename = "sample_explanation.mp3"
-    if not os.path.exists(filename):
-        try:
-            from gtts import gTTS
-            text = (
-                "An E R Diagram is a visual representation of a database's logical structure, "
-                "defining entities, attributes, and relationships. It optimizes data organization, "
-                "supports normalization and integrity, and simplifies query design. Key entities "
-                "include User, Audio File, Transcript, Audio Feature, Evaluation Result, Reference Concept, "
-                "Semantic Similarity, Report, and Session."
-            )
-            tts = gTTS(text=text, lang='en', slow=False)
-            tts.save(filename)
-        except Exception:
-            # Fallback to standard sine wave WAV if offline or gTTS fails
-            filename = "sample_explanation.wav"
-            if not os.path.exists(filename):
-                sample_rate = 16000
-                t = np.linspace(0, 8, 8 * sample_rate)
-                data = np.sin(2 * np.pi * 180 * t) * 0.2
-                # Apply pauses (silence)
-                data[int(sample_rate * 1.5):int(sample_rate * 2.5)] = 0.0
-                data[int(sample_rate * 4.8):int(sample_rate * 5.6)] = 0.0
-                data += np.random.normal(0, 0.005, len(t))
-                data = np.clip(data, -1.0, 1.0)
-                wav.write(filename, sample_rate, data.astype(np.float32))
-    return filename
-
-# Ensure sample audio exists
-sample_audio_path = ensure_sample_audio()
-
-
 # Predefined Reference Concepts
 CONCEPTS = {
     "Entity Relationship Diagram (ERD)": (
@@ -72,6 +38,47 @@ CONCEPTS = {
         "Service (IaaS), Platform as a Service (PaaS), and Software as a Service (SaaS)."
     )
 }
+
+# Helper function to generate spoken or mock audio files for each concept if not exists
+def ensure_sample_audios():
+    samples = {
+        "Entity Relationship Diagram (ERD)": ("sample_erd.mp3", CONCEPTS["Entity Relationship Diagram (ERD)"]),
+        "Machine Learning (ML)": ("sample_ml.mp3", CONCEPTS["Machine Learning (ML)"]),
+        "Cloud Computing": ("sample_cloud.mp3", CONCEPTS["Cloud Computing"])
+    }
+    
+    for key, (filename, text) in samples.items():
+        if not os.path.exists(filename):
+            try:
+                from gtts import gTTS
+                tts = gTTS(text=text, lang='en', slow=False)
+                tts.save(filename)
+            except Exception:
+                # Fallback to standard sine wave WAV if offline or gTTS fails
+                wav_filename = filename.replace('.mp3', '.wav')
+                if not os.path.exists(wav_filename):
+                    sample_rate = 16000
+                    t = np.linspace(0, 8, 8 * sample_rate)
+                    data = np.sin(2 * np.pi * 180 * t) * 0.2
+                    data[int(sample_rate * 1.5):int(sample_rate * 2.5)] = 0.0
+                    data[int(sample_rate * 4.8):int(sample_rate * 5.6)] = 0.0
+                    data += np.random.normal(0, 0.005, len(t))
+                    data = np.clip(data, -1.0, 1.0)
+                    wav.write(wav_filename, sample_rate, data.astype(np.float32))
+
+# Ensure all sample audios exist
+ensure_sample_audios()
+
+# Helper to get the correct audio file path for the active concept
+def get_sample_audio_path(selected_concept):
+    mapping = {
+        "Entity Relationship Diagram (ERD)": ("sample_erd.mp3", "sample_erd.wav"),
+        "Machine Learning (ML)": ("sample_ml.mp3", "sample_ml.wav"),
+        "Cloud Computing": ("sample_cloud.mp3", "sample_cloud.wav")
+    }
+    mp3_path, wav_path = mapping.get(selected_concept, ("sample_erd.mp3", "sample_erd.wav"))
+    return mp3_path if os.path.exists(mp3_path) else (wav_path if os.path.exists(wav_path) else "sample_erd.mp3")
+
 
 # --- Custom Styling ---
 st.markdown("""
@@ -252,8 +259,9 @@ with tab_analysis:
             
             if input_type == "Use Pre-Recorded Sample":
                 st.success("Sample audio initialized. Click 'Run Analysis' to test the engine instantly!")
-                st.audio(sample_audio_path)
-                audio_file_path = sample_audio_path
+                active_sample_path = get_sample_audio_path(st.session_state.concept_selected)
+                st.audio(active_sample_path)
+                audio_file_path = active_sample_path
             else:
                 uploaded_file = st.file_uploader(
                     "Upload audio file (WAV, MP3, or M4A)", 
@@ -319,7 +327,7 @@ with tab_analysis:
                         st.session_state.scores = scores
                         
                         # Clean up temporary uploaded file if we created one
-                        if audio_file_path != sample_audio_path and os.path.exists(audio_file_path):
+                        if audio_file_path != get_sample_audio_path(st.session_state.concept_selected) and os.path.exists(audio_file_path):
                             try:
                                 pass # Keep it for the session or delete after use
                             except:
@@ -371,7 +379,7 @@ with tab_analysis:
             # Waveform Plot
             st.markdown("#### 📈 Waveform Visualization")
             fig = audio_utils.generate_waveform_plot(
-                st.session_state.audio_file if st.session_state.audio_file else sample_audio_path
+                st.session_state.audio_file if st.session_state.audio_file else get_sample_audio_path(st.session_state.concept_selected)
             )
             st.plotly_chart(fig, use_container_width=True)
             
@@ -429,7 +437,7 @@ with tab_erd:
     
     erd_data = [
         {"Entity": "User", "Description": "Represents the student, presenter, or educator.", "Current Session State Mapping": "None (Anonymous local execution)"},
-        {"Entity": "Audio File", "Description": "Holds the raw bytes, path, sample rate, and duration of explanation speech.", "Current Session State Mapping": f"Path: '{st.session_state.audio_file or sample_audio_path}'"},
+        {"Entity": "Audio File", "Description": "Holds the raw bytes, path, sample rate, and duration of explanation speech.", "Current Session State Mapping": f"Path: '{st.session_state.audio_file or get_sample_audio_path(st.session_state.concept_selected)}'"},
         {"Entity": "Transcript", "Description": "Stores the speech-to-text converted words.", "Current Session State Mapping": f"Text size: {len(st.session_state.transcription) if st.session_state.transcription else 0} chars"},
         {"Entity": "Audio Feature", "Description": "RMS energy profiles, silence ratios, and verbal pacing (WPM).", "Current Session State Mapping": f"Pace: {st.session_state.audio_metrics['speaking_pace_wpm']:.1f} WPM, Silence: {st.session_state.audio_metrics['pause_ratio']*100:.1f}%" if st.session_state.audio_metrics else "Empty"},
         {"Entity": "Evaluation Result", "Description": "Comprehension score, fluency score, and qualitative categorization.", "Current Session State Mapping": f"Score: {st.session_state.scores['overall_score'] if st.session_state.scores else 'N/A'}"},
