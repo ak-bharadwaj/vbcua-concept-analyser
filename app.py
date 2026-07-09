@@ -16,33 +16,39 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Helper function to generate a mock audio WAV file if not exists
-def ensure_sample_wav():
-    filename = "sample_explanation.wav"
+# Helper function to generate a spoken or mock audio file if not exists
+def ensure_sample_audio():
+    filename = "sample_explanation.mp3"
     if not os.path.exists(filename):
-        sample_rate = 16000
-        # 8 seconds of simulated explanation audio
-        t = np.linspace(0, 8, 8 * sample_rate)
-        # Create modulated speech amplitude simulator
-        data = np.sin(2 * np.pi * 180 * t) * 0.2
-        data += np.sin(2 * np.pi * 320 * t) * 0.1
-        
-        # Apply pauses (silence)
-        # Pause 1: 1.5s to 2.5s
-        data[int(sample_rate * 1.5):int(sample_rate * 2.5)] = 0.0
-        # Pause 2: 4.8s to 5.6s
-        data[int(sample_rate * 4.8):int(sample_rate * 5.6)] = 0.0
-        
-        # Add random noise
-        data += np.random.normal(0, 0.005, len(t))
-        
-        # Normalize and save
-        data = np.clip(data, -1.0, 1.0)
-        wav.write(filename, sample_rate, data.astype(np.float32))
+        try:
+            from gtts import gTTS
+            text = (
+                "An E R Diagram is a visual representation of a database's logical structure, "
+                "defining entities, attributes, and relationships. It optimizes data organization, "
+                "supports normalization and integrity, and simplifies query design. Key entities "
+                "include User, Audio File, Transcript, Audio Feature, Evaluation Result, Reference Concept, "
+                "Semantic Similarity, Report, and Session."
+            )
+            tts = gTTS(text=text, lang='en', slow=False)
+            tts.save(filename)
+        except Exception:
+            # Fallback to standard sine wave WAV if offline or gTTS fails
+            filename = "sample_explanation.wav"
+            if not os.path.exists(filename):
+                sample_rate = 16000
+                t = np.linspace(0, 8, 8 * sample_rate)
+                data = np.sin(2 * np.pi * 180 * t) * 0.2
+                # Apply pauses (silence)
+                data[int(sample_rate * 1.5):int(sample_rate * 2.5)] = 0.0
+                data[int(sample_rate * 4.8):int(sample_rate * 5.6)] = 0.0
+                data += np.random.normal(0, 0.005, len(t))
+                data = np.clip(data, -1.0, 1.0)
+                wav.write(filename, sample_rate, data.astype(np.float32))
     return filename
 
-# Ensure sample WAV exists
-sample_wav_path = ensure_sample_wav()
+# Ensure sample audio exists
+sample_audio_path = ensure_sample_audio()
+
 
 # Predefined Reference Concepts
 CONCEPTS = {
@@ -246,8 +252,8 @@ with tab_analysis:
             
             if input_type == "Use Pre-Recorded Sample":
                 st.success("Sample audio initialized. Click 'Run Analysis' to test the engine instantly!")
-                st.audio(sample_wav_path)
-                audio_file_path = sample_wav_path
+                st.audio(sample_audio_path)
+                audio_file_path = sample_audio_path
             else:
                 uploaded_file = st.file_uploader(
                     "Upload audio file (WAV, MP3, or M4A)", 
@@ -313,7 +319,7 @@ with tab_analysis:
                         st.session_state.scores = scores
                         
                         # Clean up temporary uploaded file if we created one
-                        if audio_file_path != sample_wav_path and os.path.exists(audio_file_path):
+                        if audio_file_path != sample_audio_path and os.path.exists(audio_file_path):
                             try:
                                 pass # Keep it for the session or delete after use
                             except:
@@ -365,7 +371,7 @@ with tab_analysis:
             # Waveform Plot
             st.markdown("#### 📈 Waveform Visualization")
             fig = audio_utils.generate_waveform_plot(
-                st.session_state.audio_file if st.session_state.audio_file else sample_wav_path
+                st.session_state.audio_file if st.session_state.audio_file else sample_audio_path
             )
             st.plotly_chart(fig, use_container_width=True)
             
@@ -423,7 +429,7 @@ with tab_erd:
     
     erd_data = [
         {"Entity": "User", "Description": "Represents the student, presenter, or educator.", "Current Session State Mapping": "None (Anonymous local execution)"},
-        {"Entity": "Audio File", "Description": "Holds the raw bytes, path, sample rate, and duration of explanation speech.", "Current Session State Mapping": f"Path: '{st.session_state.audio_file or sample_wav_path}'"},
+        {"Entity": "Audio File", "Description": "Holds the raw bytes, path, sample rate, and duration of explanation speech.", "Current Session State Mapping": f"Path: '{st.session_state.audio_file or sample_audio_path}'"},
         {"Entity": "Transcript", "Description": "Stores the speech-to-text converted words.", "Current Session State Mapping": f"Text size: {len(st.session_state.transcription) if st.session_state.transcription else 0} chars"},
         {"Entity": "Audio Feature", "Description": "RMS energy profiles, silence ratios, and verbal pacing (WPM).", "Current Session State Mapping": f"Pace: {st.session_state.audio_metrics['speaking_pace_wpm']:.1f} WPM, Silence: {st.session_state.audio_metrics['pause_ratio']*100:.1f}%" if st.session_state.audio_metrics else "Empty"},
         {"Entity": "Evaluation Result", "Description": "Comprehension score, fluency score, and qualitative categorization.", "Current Session State Mapping": f"Score: {st.session_state.scores['overall_score'] if st.session_state.scores else 'N/A'}"},
