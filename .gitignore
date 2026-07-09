@@ -8,7 +8,9 @@ secrets.toml
 temp_upload.*
 *.wav
 *.mp3
+!sample_explanation.mp3
 *.m4a
+
 
 # Python cache & virtual environments
 __pycache__/
